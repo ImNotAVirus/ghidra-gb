@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- See Relax specification: Ghidra/Framework/SoftwareModeling/data/languages/language_definitions.rxg -->
+<language_definitions>
+   <language processor="GameBoy"
+            endian="little"
+            size="16"
+            variant="default"
+            version="1.0"
+            slafile="skel.sla"
+            processorspec="skel.pspec"
+            id="gb:LE:16:default">
+    <description>GameBoy Language Module</description>
+    <compiler name="default" spec="skel.cspec" id="default"/>
+  </language> 
+</language_definitions>
