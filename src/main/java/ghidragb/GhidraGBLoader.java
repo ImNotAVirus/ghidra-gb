@@ -30,15 +30,20 @@ import ghidra.app.util.opinion.LoadSpec;
 import ghidra.app.util.opinion.QueryOpinionService;
 import ghidra.app.util.opinion.QueryResult;
 import ghidra.framework.model.DomainObject;
+import ghidra.program.database.function.OverlappingFunctionException;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.address.AddressOverflowException;
+import ghidra.program.model.address.AddressSet;
+import ghidra.program.model.address.AddressSpace;
 import ghidra.program.model.data.DataUtilities;
 import ghidra.program.model.data.DataUtilities.ClearDataMode;
 import ghidra.program.model.data.Structure;
 import ghidra.program.model.data.StructureDataType;
 import ghidra.program.model.listing.Program;
+import ghidra.program.model.symbol.SourceType;
 import ghidra.program.model.util.CodeUnitInsertionException;
 import ghidra.util.exception.CancelledException;
+import ghidra.util.exception.InvalidInputException;
 import ghidra.util.task.TaskMonitor;
 import ghidragb.utils.GameBoyHeaders;
 
@@ -83,35 +88,18 @@ public class GhidraGBLoader extends AbstractLibrarySupportLoader {
 	protected void load(ByteProvider provider, LoadSpec loadSpec, List<Option> options,
 			Program program, MemoryConflictHandler handler, TaskMonitor monitor, MessageLog log)
 			throws CancelledException, IOException
-	{
-		MemoryBlockUtil mbu = new MemoryBlockUtil(program, handler);
-		
+	{		
 		monitor.setMessage("GameBoy Loader: Start loading");
 		
-		Structure header_struct = new StructureDataType("header_item", 0);
-		header_struct.add(StructConverter.VOID, 16*3, "nintendo_logo", null);
-		header_struct.add(StructConverter.STRING, 16, "title", null);
-		header_struct.add(StructConverter.WORD, 2, "new_licence_code", null);
-		header_struct.add(StructConverter.BYTE, 1, "sgb_flag", null);
-		header_struct.add(StructConverter.BYTE, 1, "cartridge_type", null);
-		header_struct.add(StructConverter.BYTE, 1, "rom_size", null);
-		header_struct.add(StructConverter.BYTE, 1, "ram_size", null);
-		header_struct.add(StructConverter.BYTE, 1, "destination_code", null);
-		header_struct.add(StructConverter.BYTE, 1, "old_licence_code", null);
-		header_struct.add(StructConverter.BYTE, 1, "mask_rom_version", null);
-		header_struct.add(StructConverter.BYTE, 1, "header_checksum", null);
-		header_struct.add(StructConverter.WORD, 2, "global_checksum", null);
-		
-		Address begin_header = program.getAddressFactory().getDefaultAddressSpace().getAddress(0x0104);
-		
+		MemoryBlockUtil mbu = new MemoryBlockUtil(program, handler);
+
 		try
 		{
-			mbu.createInitializedBlock(".header", begin_header, provider.getInputStream(0x0104), 0x4C,
-					"The ROM header", "ROM Header", true, true, true, monitor);
-			DataUtilities.createData(program, begin_header, header_struct, -1, false,
-					ClearDataMode.CLEAR_ALL_UNDEFINED_CONFLICT_DATA);
+			createHeaderSection(program, mbu, provider, monitor);
+			createEntrypointSection(program, mbu, provider, monitor);
 		}
-		catch (CodeUnitInsertionException | AddressOverflowException e)
+		catch (CodeUnitInsertionException | AddressOverflowException | InvalidInputException
+				| OverlappingFunctionException e)
 		{
 			e.printStackTrace();
 		}
@@ -136,5 +124,33 @@ public class GhidraGBLoader extends AbstractLibrarySupportLoader {
 		// validation.
 
 		return super.validateOptions(provider, loadSpec, options);
+	}
+	
+	private void createHeaderSection(Program program, MemoryBlockUtil mbu, ByteProvider provider,
+			TaskMonitor monitor) throws AddressOverflowException, IOException, CodeUnitInsertionException
+	{
+		Structure header_struct = GameBoyHeaders.getDataStructure();
+		Address begin_header = program.getAddressFactory().getDefaultAddressSpace().getAddress(0x0104);
+
+		mbu.createInitializedBlock(".header", begin_header, provider.getInputStream(0x0104), 0x4C,
+				"The ROM header", "ROM Header", true, true, true, monitor);
+
+		DataUtilities.createData(program, begin_header, header_struct, -1, false,
+				ClearDataMode.CLEAR_ALL_UNDEFINED_CONFLICT_DATA);
+	}
+	
+	private void createEntrypointSection(Program program, MemoryBlockUtil mbu, ByteProvider provider,
+			TaskMonitor monitor) throws AddressOverflowException, IOException, InvalidInputException,
+			OverlappingFunctionException
+	{
+		AddressSpace as = program.getAddressFactory().getDefaultAddressSpace();
+		Address begin_entrypoint = as.getAddress(0x0100);
+		Address end_entrypoint = as.getAddress(0x0103);
+		AddressSet body = new AddressSet(begin_entrypoint, end_entrypoint);
+
+		mbu.createInitializedBlock(".entrypoint", begin_entrypoint, provider.getInputStream(0x0100), 0x04,
+				"The ROM Entrypoint", "ROM Entrypoint", true, true, true, monitor);
+
+		program.getFunctionManager().createFunction("entrypoint", begin_entrypoint, body, SourceType.ANALYSIS);
 	}
 }

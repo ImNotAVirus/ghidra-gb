@@ -6,6 +6,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import ghidra.app.util.bin.BinaryReader;
+import ghidra.app.util.bin.StructConverter;
+import ghidra.program.model.data.Structure;
+import ghidra.program.model.data.StructureDataType;
 
 public class GameBoyHeaders
 {
@@ -35,13 +38,33 @@ public class GameBoyHeaders
 		this.new_licence_code = reader.readShort(0x0144);
 		this.sgb_flag = reader.readByte(0x0146);
 		this.cartridge_type = reader.readByte(0x0147);
-		this.rom_size = GameBoyUtils.calc_rom_size(reader.readByte(0x0148));
-		this.ram_size = GameBoyUtils.calc_ram_size(reader.readByte(0x0149));
+		this.rom_size = GameBoyHeadersUtils.calc_rom_size(reader.readByte(0x0148));
+		this.ram_size = GameBoyHeadersUtils.calc_ram_size(reader.readByte(0x0149));
 		this.destination_code = reader.readByte(0x014A);
 		this.old_licence_code = reader.readByte(0x014B);
 		this.mask_rom_version = reader.readByte(0x014C);
 		this.header_checksum = reader.readByte(0x014D);
 		this.global_checksum = reader.readShort(0x014E);
+	}
+	
+	public static Structure getDataStructure()
+	{
+		Structure header_struct = new StructureDataType("header_item", 0);
+		
+		header_struct.add(StructConverter.VOID, 16*3, "nintendo_logo", null);
+		header_struct.add(StructConverter.STRING, 16, "title", null);
+		header_struct.add(StructConverter.WORD, 2, "new_licence_code", null);
+		header_struct.add(StructConverter.BYTE, 1, "sgb_flag", null);
+		header_struct.add(StructConverter.BYTE, 1, "cartridge_type", null);
+		header_struct.add(StructConverter.BYTE, 1, "rom_size", null);
+		header_struct.add(StructConverter.BYTE, 1, "ram_size", null);
+		header_struct.add(StructConverter.BYTE, 1, "destination_code", null);
+		header_struct.add(StructConverter.BYTE, 1, "old_licence_code", null);
+		header_struct.add(StructConverter.BYTE, 1, "mask_rom_version", null);
+		header_struct.add(StructConverter.BYTE, 1, "header_checksum", null);
+		header_struct.add(StructConverter.WORD, 2, "global_checksum", null);
+		
+		return header_struct;
 	}
 	
 	public boolean check_header()
@@ -112,7 +135,7 @@ public class GameBoyHeaders
 	}
 }
 
-class GameBoyUtils
+class GameBoyHeadersUtils
 {
 	public static int calc_ram_size(byte type)
 	{
